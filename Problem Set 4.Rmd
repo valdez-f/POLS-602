@@ -1,0 +1,132 @@
+---
+title: "Problem Set 4"
+author: "Fernanda Valdez"
+date: "2025-11-22"
+output: pdf_document
+---
+
+PART 1: READING
+
+1. What is the difference between a confounder and a collider? How should you address each in your models?
+
+A confounder is when Z causes both X and Y. In your model, you need to control for Z. If you do not control for Z, then Z will also affect Y through X. This will bias your result and that is what we do not want to happen in our model. It will obscure the relationship between X and Y. 
+
+A collider is in the opposite direction when X and Y both affect Z. In contrast to confounders, one does not control for Z because this could cause a biased effect on Y. 
+
+2. How can conditioning on a collider create bias?
+
+As previously noted, conditioning on a collider can create a correlation between X and Y which is also called collider-stratification bias when there is no correlation between X and Y. Essentially, conditioning on a collider can create a spurious relationship between X and Y. 
+
+3. Why can't statistical summaries or correlations alone tell us whether to control for a variable?
+
+Statistical summaries cannot tell you when a variable is a mediator, for example. By using a DAG, you can see when to remove or include a variable in your model. Essentially, statistical summaries only show you what you tell them. So, if you don't tell your model what variable is a confounder or what to control for, then it is just going to compute what you instruct it and could result in a spurious relationship. 
+
+4. What is meant by a "kitchen sink" regression, and what is wrong with this approach to modeling?
+
+A kitchen sink regression is when you include many variables into your regression model which may or may not be relevant to your outcome of interest. If you include variables that are not relevant to your outcome of interest, then you risk might obscure the direction of the variables' relationships, have no useful causal interpretations, inflate errors in hypothesis testing, and risk overfitting your model.
+
+5. What is a "backdoor path" and how does multiple regression help block these paths?
+
+This when the pathway that runs from the confounder, z, to X. Multiple regression allows you to include confounders and close those "backdoor paths" in order to isolate X's effect on Y. 
+
+
+PART 2: SIMULATION
+
+Here, I simulate a social causal relationship between educational attainment and voter turnout. The following are my variables: 
+Social causal relationship: education and voter turnout
+X: Education (x)
+Y: Increase voter turnout (y)
+Confounder: age (z)
+Mediator: civic engagement (m)
+Collider: social pressure (c)
+Instrument: extra credit (i)
+Exogenous effect on Y: poll hack (e)
+
+Generate random data for variables that are not causally affected by any others in your DAG (confounder and exogenous variables).
+
+
+```{r}
+set.seed(769)
+# sample size
+n <- 5000 
+
+# confounder: age
+z <- rnorm(n)
+# exogenous effect on Y: polls are hacked
+e <- rnorm(n)
+# instrumental variable: extra credit (i)
+i <- rnorm(n)
+```
+
+Generate the remaining variables as linear functions of the variables that causally affect them. Each linear function should have beta coefficients that represent the true effect size, and a random error term. 
+```{r}
+# Error term
+e_t <- rnorm(n)
+
+#Linear function for treatment variable (education)
+x <- 0.4*z + rnorm(n)
+
+#Linear function for mediator (civic engagement)
+m <- 0.5*x + rnorm(n)
+
+#Linear function for outcome variable (voter turnout)
+y <- 0.6*x + 0.7*m + 0.8*z + rnorm(n) + e_t
+
+#Linear function for collider (social pressure)
+c <- 0.9*x + 0.10*y + rnorm(n)
+```
+
+1. Fit a model that recovers the direct effect of the treatment on the outcome variable. Which variables are necessary to recover the direct effect?
+
+To recover the direct effect, I would need to include a confounder and  mediator which in this case is age and civic engagement, respectively.
+```{r}
+# Data frame for variables
+df <- data.frame(education = c(x), 
+                 voter_turnout = c(y), 
+                 age = c(z), 
+                 social_pressure = c(c), 
+                 civic_engagement = c(m), 
+                 extra_credit = c(i), 
+                 poll_hack = c(e))
+
+# Model for direct effect
+
+model <- lm (voter_turnout ~ education + age + civic_engagement, data=df)
+summary(model)
+
+```
+
+2. Fit a model that recovers the total effect of the treatment on the outcome variable. How does your model change to estimate the total effect? 
+To recover the total effect of the treatment on the outcome variable, you should not control for the mediator (social pressure) in your model. 
+
+```{r}
+model <- lm (voter_turnout ~ education + age, data=df)
+summary(model)
+```
+3. How do your results change when you control for the collider, the exogenous independent variable, or the instrument (individually, not all simultaneously)?
+ 
+
+```{r}
+#collider
+model <- lm (voter_turnout ~ education + age + social_pressure, data=df)
+summary(model)
+```
+If I control for the collider, then I will open the backdoors to my coefficient for education and it becomes biased.
+
+```{r}
+#exogenous independent variable
+model <- lm (voter_turnout ~ education + age + poll_hack, data=df)
+summary(model)
+```
+If I control for my exogenous variable, then there won't be a lot of change in my model because it is an exogenous variable only for the outcome variable (y) which in this case is voter turnout.
+```{r}
+#instrumental variable
+model <- lm (voter_turnout ~ education + age + extra_credit, data=df)
+summary(model)
+```
+If I control for my instrumental variable (extra credit), then this can help isolate my variation in my treatment variable. 
+
+4. Given the reading and simulation results, how should you choose which variable to include in a model?
+In a model, I would always include confounders. I would not include colliders, but I would control for mediators (if I want to measure a direct effect). 
+
+
